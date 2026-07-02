@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: seismicsage-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: backend
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false          # set manually in Render dashboard — never commit
+      - key: FRONTEND_URL
+        sync: false          # set to your Vercel deployment URL
+      - key: LOG_LEVEL
+        value: INFO
+      - key: USGS_CACHE_TTL_SECONDS
+        value: "60"
+      - key: GEMINI_CACHE_TTL_SECONDS
+        value: "3600"
+      - key: GEMINI_TIMEOUT_SECONDS
+        value: "10"
+    healthCheckPath: /health
+    autoDeploy: true
