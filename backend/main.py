@@ -21,10 +21,12 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import FRONTEND_URL, LOG_LEVEL
-from models.schemas import ErrorResponse, HealthResponse, ServiceStatus
+from models.schemas import ErrorResponse, HealthResponse, ServiceStatus, StatsResponse
 from routers import analysis, earthquakes
+from routers.earthquakes import get_stats  # re-export for /api/stats alias
 from services import gemini_service
 from services.geology_service import is_plate_data_loaded, load_plate_boundaries
 
@@ -110,6 +112,32 @@ app.include_router(analysis.router)
 # ---------------------------------------------------------------------------
 # Global exception handler
 # ---------------------------------------------------------------------------
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """
+    Catch HTTPExceptions and format them as structured ErrorResponse JSON.
+    """
+    error_mapping = {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        405: "method_not_allowed",
+        429: "too_many_requests",
+        503: "service_unavailable",
+    }
+    error_code = error_mapping.get(exc.status_code, "http_error")
+    error_response = ErrorResponse(
+        error=error_code,
+        message=exc.detail,
+        detail=None,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_response.model_dump(mode="json"),
+    )
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -223,6 +251,26 @@ async def _check_usgs_health() -> ServiceStatus:
             status="down",
             detail=f"USGS probe failed: {exc}",
         )
+
+
+# ---------------------------------------------------------------------------
+# /api/stats convenience alias (also available at /api/earthquakes/stats/summary)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/stats",
+    response_model=StatsResponse,
+    summary="Get aggregate earthquake statistics (alias)",
+    description="Alias for /api/earthquakes/stats/summary. Returns server-computed stats for the feed.",
+    tags=["Earthquakes"],
+)
+async def stats_alias(
+    feed: str = "significant_week",
+) -> StatsResponse:
+    """Alias route — delegates to the earthquakes router stats handler."""
+    from typing import Annotated
+    from fastapi import Query
+    return await get_stats(feed=feed)
 
 
 # ---------------------------------------------------------------------------

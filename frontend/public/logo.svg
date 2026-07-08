@@ -1,0 +1,16 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SeismicSage logo">
+  <!-- Outer globe circle -->
+  <circle cx="16" cy="16" r="14" fill="#f5f2ee" stroke="#c8c3bb" stroke-width="0.6"/>
+  <!-- Horizontal equator -->
+  <line x1="2" y1="16" x2="30" y2="16" stroke="#e0ddd8" stroke-width="0.5"/>
+  <!-- Latitude lines -->
+  <ellipse cx="16" cy="16" rx="14" ry="6" fill="none" stroke="#e0ddd8" stroke-width="0.45"/>
+  <!-- Longitude arc -->
+  <ellipse cx="16" cy="16" rx="8" ry="14" fill="none" stroke="#e0ddd8" stroke-width="0.45"/>
+  <!-- Seismic wave rings — concentric from epicenter at (18, 13) -->
+  <circle cx="18" cy="13" r="4" fill="none" stroke="#c0392b" stroke-width="0.8" opacity="0.45"/>
+  <circle cx="18" cy="13" r="7.5" fill="none" stroke="#c0392b" stroke-width="0.55" opacity="0.28"/>
+  <circle cx="18" cy="13" r="11" fill="none" stroke="#c0392b" stroke-width="0.4" opacity="0.15"/>
+  <!-- Epicenter dot -->
+  <circle cx="18" cy="13" r="2" fill="#c0392b"/>
+</svg>

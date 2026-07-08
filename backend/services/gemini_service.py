@@ -11,7 +11,8 @@ Responsibilities:
 Design decisions:
   - temperature=0.3 — factual consistency over creative variance
   - SYSTEM_PROMPT is a module-level constant for visibility and testability
-  - Gemini is run via asyncio.to_thread() since google-generativeai is sync
+  - Uses google-genai SDK (>= 0.8.0) which supports all key formats
+  - Gemini is run via asyncio.to_thread() since the SDK is synchronous
   - All error paths return structured fallback responses, never raise
 """
 
@@ -21,8 +22,9 @@ import logging
 from datetime import datetime, timezone
 
 import httpx
-import google.generativeai as genai
-from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError, ClientError, ServerError
 
 from config import GEMINI_CACHE_TTL, GEMINI_TIMEOUT, GOOGLE_API_KEY
 from models.schemas import AnalysisResponse, GeologicalContext, Earthquake
@@ -34,11 +36,28 @@ logger = logging.getLogger(__name__)
 # Gemini configuration
 # ---------------------------------------------------------------------------
 
-# Configure the SDK once at module import time.
-# GOOGLE_API_KEY is loaded from the environment via config.py.
-genai.configure(api_key=GOOGLE_API_KEY)
+# Instantiate a module-level client. The new google-genai SDK supports
+# all key formats including the AQ.* keys from Google AI Studio.
+_client: genai.Client | None = None
 
-_MODEL_NAME = "gemini-1.5-flash"
+
+def _get_client() -> genai.Client:
+    """
+    Return the module-level Gemini client, creating it on first call.
+
+    Lazy initialisation avoids crashing at import time when no API key
+    is configured (e.g. during unit tests).
+
+    Returns:
+        A configured genai.Client instance.
+    """
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=GOOGLE_API_KEY)
+    return _client
+
+
+_MODEL_NAME = "gemini-3.5-flash"
 _TEMPERATURE = 0.3
 
 # ---------------------------------------------------------------------------
@@ -55,6 +74,7 @@ Rules:
 - Reference the specific tectonic setting if provided
 - Keep the summary to 2-3 sentences
 - Generate a risk_assessment considering population density context if inferable from place name
+- Under geological_context, the fault_type field must be exactly one of: convergent, divergent, transform, or strike-slip (do not use null)
 - Output valid JSON matching the exact schema provided"""
 
 # JSON schema description passed to Gemini so it knows the exact output shape
@@ -64,7 +84,7 @@ Output a single JSON object with exactly these fields:
   "summary": "<2-3 sentence plain-language explanation>",
   "geological_context": {
     "tectonic_setting": "<description>",
-    "fault_type": "<fault mechanism or null>",
+    "fault_type": "<must be one of: convergent | divergent | transform | strike-slip>",
     "plate_boundary": "<boundary name or null>",
     "boundary_type": "<convergent|divergent|transform|unknown or null>",
     "distance_to_boundary_km": <number or null>,
@@ -131,18 +151,30 @@ async def analyze_earthquake(
             earthquake_id=earthquake.id,
             reason=f"Analysis timed out after {GEMINI_TIMEOUT} seconds.",
         )
-    except ResourceExhausted:
-        logger.warning("Gemini rate limit hit for event '%s'", earthquake.id)
+    except ClientError as exc:
+        # 429 rate limit, 400 bad request, etc.
+        status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+        logger.warning(
+            "Gemini client error (status=%s) for event '%s': %s",
+            status, earthquake.id, exc,
+        )
+        is_rate_limited = status == 429
         return _fallback_response(
             earthquake_id=earthquake.id,
-            reason="Gemini API rate limit reached. Please retry shortly.",
-            rate_limited=True,
+            reason=f"Gemini API error: {exc}",
+            rate_limited=is_rate_limited,
         )
-    except ServiceUnavailable as exc:
-        logger.error("Gemini service unavailable for event '%s': %s", earthquake.id, exc)
+    except ServerError as exc:
+        logger.error("Gemini server error for event '%s': %s", earthquake.id, exc)
         return _fallback_response(
             earthquake_id=earthquake.id,
             reason="Gemini service is currently unavailable.",
+        )
+    except APIError as exc:
+        logger.error("Gemini API error for event '%s': %s", earthquake.id, exc)
+        return _fallback_response(
+            earthquake_id=earthquake.id,
+            reason=f"Gemini API error: {exc}",
         )
 
     analysis = _parse_gemini_response(response_text, earthquake.id, geo_context)
@@ -211,7 +243,10 @@ TECTONIC CONTEXT (confidence: {geo_context.confidence}):
 
 def _call_gemini_sync(user_prompt: str) -> str:
     """
-    Synchronous Gemini API call, intended to be run in a thread via asyncio.to_thread.
+    Synchronous Gemini API call using the google-genai SDK.
+
+    Intended to be run in a thread via asyncio.to_thread to keep the
+    async event loop unblocked.
 
     Uses JSON response MIME type to enforce structured output.
     Sets temperature to 0.3 for factual consistency.
@@ -223,19 +258,20 @@ def _call_gemini_sync(user_prompt: str) -> str:
         The raw text response from Gemini (expected to be valid JSON).
 
     Raises:
-        ResourceExhausted: On Gemini 429 rate limit.
-        ServiceUnavailable: On Gemini 503.
-        google.generativeai.types.BlockedPromptException: On safety filter.
+        ClientError: On 4xx responses (rate limit, bad request, etc.)
+        ServerError: On 5xx responses from Gemini.
+        APIError:    On other API-level failures.
     """
-    model = genai.GenerativeModel(
-        model_name=_MODEL_NAME,
-        system_instruction=SYSTEM_PROMPT,
-        generation_config=genai.GenerationConfig(
+    client = _get_client()
+    response = client.models.generate_content(
+        model=_MODEL_NAME,
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
             temperature=_TEMPERATURE,
             response_mime_type="application/json",
         ),
     )
-    response = model.generate_content(user_prompt)
     return response.text
 
 
@@ -274,8 +310,6 @@ def _parse_gemini_response(
         )
 
     try:
-        # Parse nested geological context from Gemini's output,
-        # falling back to our data-grounded context where Gemini omits fields.
         gem_context_raw = data.get("geological_context", {})
         geological_context = GeologicalContext(
             tectonic_setting=gem_context_raw.get(
@@ -385,11 +419,12 @@ async def check_gemini_health() -> tuple[bool, float | None]:
     start = time.monotonic()
     try:
         await asyncio.wait_for(
-            asyncio.to_thread(_call_gemini_sync, "Reply with: ok"),
-            timeout=5.0,
+            asyncio.to_thread(_call_gemini_sync, "Reply with the single word: ok"),
+            timeout=10.0,
         )
         latency_ms = (time.monotonic() - start) * 1000
         return True, round(latency_ms, 1)
-    except (asyncio.TimeoutError, ResourceExhausted, ServiceUnavailable,
-            httpx.HTTPError, ValueError, RuntimeError):
+    except (asyncio.TimeoutError, ClientError, ServerError, APIError,
+            httpx.HTTPError, ValueError, RuntimeError) as exc:
+        logger.debug("Gemini health check failed: %s", exc)
         return False, None

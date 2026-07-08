@@ -1,0 +1,31 @@
+.glass {
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  /* Inner highlight at top edge — makes glass catch light like real glass */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.light {
+  background: var(--glass-bg-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  backdrop-filter: var(--glass-blur-light);
+}
+
+.medium {
+  background: var(--glass-bg-medium);
+  -webkit-backdrop-filter: var(--glass-blur-medium);
+  backdrop-filter: var(--glass-blur-medium);
+}
+
+.strong {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  /* Strong panels get a slightly more visible inner highlight */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.70),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 4px 24px rgba(0, 0, 0, 0.06);
+}
