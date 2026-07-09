@@ -1,5 +1,5 @@
 // Typed API client — all calls go through Vite's dev proxy to http://localhost:8000
-import type { AnalysisResponse, EarthquakeListResponse, FeedId, StatsResponse } from './types'
+import type { AnalysisResponse, EarthquakeListResponse, FaultAnalysisRequest, FaultAnalysisResponse, FeedId, StatsResponse } from './types'
 
 const BASE = '' // Vite proxy handles routing to backend
 
@@ -35,3 +35,12 @@ export function analyzeEarthquake(
 ): Promise<AnalysisResponse> {
   return request<AnalysisResponse>(`/api/analyze/${id}?feed=${feed}`, { method: 'POST' })
 }
+
+export function analyzeFault(body: FaultAnalysisRequest): Promise<FaultAnalysisResponse> {
+  return request<FaultAnalysisResponse>('/api/analyze/fault', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+

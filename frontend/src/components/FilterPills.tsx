@@ -101,6 +101,58 @@ export function FilterPills({ filter, onChange }: FilterPillsProps) {
           />
         ))}
       </GlassPanel>
+
+      {/* Fault lines toggle */}
+      <GlassPanel
+        intensity="light"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+          padding: '6px',
+          borderRadius: 16,
+        }}
+      >
+        <button
+          id="fault-lines-toggle"
+          onClick={() => onChange({ ...filter, showFaultLines: !filter.showFaultLines })}
+          title={filter.showFaultLines ? 'Hide fault lines' : 'Show fault lines'}
+          style={{
+            position: 'relative',
+            display: 'block',
+            padding: '7px 14px',
+            border: 'none',
+            borderRadius: 10,
+            cursor: 'pointer',
+            background: 'transparent',
+            fontSize: 12,
+            fontWeight: 500,
+            fontFamily: 'inherit',
+            color: filter.showFaultLines ? '#fff' : 'var(--text-secondary)',
+            transition: 'color 120ms ease',
+            textAlign: 'center',
+            minWidth: 68,
+            outline: 'none',
+            zIndex: 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {filter.showFaultLines && (
+            <motion.span
+              layoutId={`${layoutId}-fault`}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: 10,
+                background: 'rgba(26,22,18,0.82)',
+                zIndex: -1,
+              }}
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            />
+          )}
+          ╌ Faults
+        </button>
+      </GlassPanel>
     </motion.div>
   )
 }

@@ -68,4 +68,23 @@ export type TimeFilter = 'week' | 'day'
 export interface FilterState {
   magnitude: MagnitudeFilter
   time: TimeFilter
+  showFaultLines: boolean
 }
+
+// ─── Fault analysis types ─────────────────────────────────────────────────────
+
+export interface FaultAnalysisRequest {
+  boundary_type: string
+  latitude: number
+  longitude: number
+  nearby_earthquake_ids: string[]
+}
+
+export interface FaultAnalysisResponse {
+  insight: string
+  boundary_type: string
+  latitude: number
+  longitude: number
+  generated_at: string
+}
+

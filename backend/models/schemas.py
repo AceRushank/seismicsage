@@ -5,7 +5,7 @@ All API request/response shapes are defined here.
 No raw dicts are passed between service layers or returned to the frontend.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 from pydantic import BaseModel, Field
 
@@ -178,3 +178,31 @@ class ErrorResponse(BaseModel):
     message: str = Field(..., description="Human-readable explanation")
     detail: str | None = Field(None, description="Additional debug context")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Fault analysis models
+# ---------------------------------------------------------------------------
+
+class FaultAnalysisRequest(BaseModel):
+    """Request body for POST /api/analyze/fault."""
+
+    boundary_type: str = Field(
+        ..., description="Plate boundary type: subduction | transform | spreading"
+    )
+    latitude: float = Field(..., ge=-90.0, le=90.0)
+    longitude: float = Field(..., ge=-180.0, le=180.0)
+    nearby_earthquake_ids: list[str] = Field(
+        default_factory=list, description="USGS IDs of nearby quakes for context"
+    )
+
+
+class FaultAnalysisResponse(BaseModel):
+    """AI-generated insight about a tectonic plate boundary location."""
+
+    insight: str = Field(..., description="2-3 sentence geological insight")
+    boundary_type: str
+    latitude: float
+    longitude: float
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+

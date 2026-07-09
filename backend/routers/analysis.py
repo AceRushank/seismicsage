@@ -18,7 +18,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 
 from config import DEFAULT_FEED, VALID_FEEDS
-from models.schemas import AnalysisResponse
+from models.schemas import AnalysisResponse, FaultAnalysisRequest, FaultAnalysisResponse
 from services import gemini_service, usgs_service
 from services.geology_service import get_tectonic_context
 
@@ -117,3 +117,46 @@ async def analyze_earthquake(
         )
 
     return analysis
+
+
+@router.post(
+    "/fault",
+    response_model=FaultAnalysisResponse,
+    summary="Generate AI geological insight for a tectonic fault boundary",
+    description=(
+        "Calls Gemini to generate a location-specific geological insight about "
+        "a tectonic plate boundary. Includes context from nearby recent earthquakes."
+    ),
+)
+async def analyze_fault(body: FaultAnalysisRequest) -> FaultAnalysisResponse:
+    """
+    Generate a Gemini geological insight for a tectonic plate boundary location.
+
+    Uses the boundary type, coordinates, and nearby earthquake context to produce
+    a concise, location-specific geological narrative.
+    """
+    nearby_summary = (
+        f"{len(body.nearby_earthquake_ids)} recent events nearby"
+        if body.nearby_earthquake_ids
+        else "no recent events nearby"
+    )
+
+    prompt = (
+        f"You are a geological analyst. The user clicked on a "
+        f"{body.boundary_type} plate boundary near coordinates "
+        f"({body.latitude:.2f}, {body.longitude:.2f}).\n\n"
+        f"Recent earthquakes within 300km: {nearby_summary}\n\n"
+        f"Provide a 2-3 sentence geological insight about this specific boundary location — "
+        f"what makes it notable, what historical events have occurred here, and what the "
+        f"current seismic activity suggests. Be specific to this location, not generic. "
+        f"Output only the insight text — no JSON, no markdown headers."
+    )
+
+    insight = await gemini_service.generate_fault_insight(prompt)
+    return FaultAnalysisResponse(
+        insight=insight,
+        boundary_type=body.boundary_type,
+        latitude=body.latitude,
+        longitude=body.longitude,
+    )
+

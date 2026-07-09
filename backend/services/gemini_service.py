@@ -57,7 +57,7 @@ def _get_client() -> genai.Client:
     return _client
 
 
-_MODEL_NAME = "gemini-3.5-flash"
+_MODEL_NAME = "gemini-2.0-flash"
 _TEMPERATURE = 0.3
 
 # ---------------------------------------------------------------------------
@@ -75,7 +75,8 @@ Rules:
 - Keep the summary to 2-3 sentences
 - Generate a risk_assessment considering population density context if inferable from place name
 - Under geological_context, the fault_type field must be exactly one of: convergent, divergent, transform, or strike-slip (do not use null)
-- Output valid JSON matching the exact schema provided"""
+- Output valid JSON matching the exact schema provided
+- Keep your total response concise — summary must be 2-3 sentences maximum, risk_assessment must be 1-2 sentences maximum. Do not elaborate beyond what is asked."""
 
 # JSON schema description passed to Gemini so it knows the exact output shape
 _OUTPUT_SCHEMA = """
@@ -182,6 +183,49 @@ async def analyze_earthquake(
     # Cache successful analysis
     gemini_cache.set(cache_key, analysis, ttl=GEMINI_CACHE_TTL)
     return analysis
+
+
+async def generate_fault_insight(prompt: str) -> str:
+    """
+    Generate a plain-text geological insight about a tectonic fault boundary.
+
+    Unlike analyze_earthquake, this returns raw text (not JSON) because
+    the fault context prompt is free-form prose, not structured data.
+
+    Args:
+        prompt: The fully-formed fault analysis prompt.
+
+    Returns:
+        A 2-3 sentence geological insight string. Falls back to a descriptive
+        error message if Gemini is unavailable.
+    """
+    if not GOOGLE_API_KEY:
+        return "AI insight unavailable — Gemini API key not configured."
+
+    def _call_plain() -> str:
+        client = _get_client()
+        response = client.models.generate_content(
+            model=_MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.4,
+            ),
+        )
+        return response.text.strip()
+
+    try:
+        text = await asyncio.wait_for(
+            asyncio.to_thread(_call_plain),
+            timeout=GEMINI_TIMEOUT,
+        )
+        return text
+    except asyncio.TimeoutError:
+        logger.warning("Gemini fault insight timed out after %ds", GEMINI_TIMEOUT)
+        return f"Insight generation timed out after {GEMINI_TIMEOUT} seconds. Please try again."
+    except (ClientError, ServerError, APIError) as exc:
+        logger.warning("Gemini fault insight error: %s", exc)
+        return "AI insight temporarily unavailable. Please try again shortly."
+
 
 
 # ---------------------------------------------------------------------------
