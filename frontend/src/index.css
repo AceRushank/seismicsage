@@ -1,7 +1,7 @@
 /* =========================================================
    SeismicSage — Global Styles
-   Design language: Apple visionOS / liquid glass
-   Background: warm cream gradient, never white, never dark
+   Design language: deep space / glass
+   Background: Option A — deep space #0d1117 navy-black
    =========================================================
    Spacing grid: 8px base unit, 24px viewport margins
    Layout rhythm: multiples of 8 — 8, 16, 24, 32, 40, 48
@@ -29,18 +29,18 @@
   --topbar-height:  48px;   /* approximate pill height */
   --panel-top:      calc(var(--topbar-top) + var(--topbar-height) + var(--space-2)); /* 88px */
 
-  /* Backgrounds */
-  --bg-start: #f5f2ee;
-  --bg-end: #e8e3da;
+  /* Backgrounds — Option A: deep space */
+  --bg-start: #0d1117;
+  --bg-end:   #030508;
 
-  /* Glass — three tiers of presence */
-  --glass-bg-light:  rgba(255, 255, 255, 0.15);
-  --glass-bg-medium: rgba(255, 255, 255, 0.26);
-  --glass-bg-strong: rgba(255, 255, 255, 0.40);
-  --glass-border:    0.5px solid rgba(255, 255, 255, 0.62);
-  --glass-blur-light:  blur(10px);
-  --glass-blur-medium: blur(18px);
-  --glass-blur-strong: blur(28px) saturate(1.3);
+  /* Glass — three tiers of presence (dark-mode tuned) */
+  --glass-bg-light:  rgba(255, 255, 255, 0.07);
+  --glass-bg-medium: rgba(255, 255, 255, 0.11);
+  --glass-bg-strong: rgba(255, 255, 255, 0.16);
+  --glass-border:    0.5px solid rgba(255, 255, 255, 0.14);
+  --glass-blur-light:  blur(16px);
+  --glass-blur-medium: blur(24px);
+  --glass-blur-strong: blur(32px) saturate(1.2);
   --glass-radius: 20px;
 
   /* Magnitude colours */
@@ -48,10 +48,10 @@
   --quake-amber: #ef9f27;
   --quake-green: #639922;
 
-  /* Text */
-  --text-primary:   #1a1814;
-  --text-secondary: rgba(26, 24, 20, 0.55);
-  --text-tertiary:  rgba(26, 24, 20, 0.35);
+  /* Text — light on dark */
+  --text-primary:   #e8e6e0;
+  --text-secondary: rgba(232, 230, 224, 0.60);
+  --text-tertiary:  rgba(232, 230, 224, 0.35);
 
   /* Typography */
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -70,8 +70,41 @@ body,
 }
 
 body {
-  background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
+  background: radial-gradient(ellipse at 50% 45%, #0d1117 0%, #080b12 50%, #030508 100%);
   color: var(--text-primary);
+}
+
+/* ── Option A: sparse intentional starfield ─────────────────────────────────
+   Fixed positions (not random) so they read as stars, not noise.
+   pointer-events: none so globe interactions are unaffected.
+   z-index: 0 — below all UI zones but above the body background. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 32% 8%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 48% 15%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 67% 6%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 78% 22%, rgba(255,255,255,0.45) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 88% 12%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 35%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 5% 45%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 22% 55%, rgba(255,255,255,0.25) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 38% 72%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 65%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 82% 78%, rgba(255,255,255,0.25) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 95% 58%, rgba(255,255,255,0.45) 0%, transparent 100%),
+    radial-gradient(1px 1px at 10% 88%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 28% 92%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 95%, rgba(255,255,255,0.25) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 90%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 42% 40%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 18% 72%, rgba(255,255,255,0.3) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* ---- Skeleton shimmer ---- */
@@ -83,9 +116,9 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(200, 195, 185, 0.3) 25%,
-    rgba(200, 195, 185, 0.5) 50%,
-    rgba(200, 195, 185, 0.3) 75%
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 75%
   );
   background-size: 800px 100%;
   animation: shimmer 1.6s infinite linear;
@@ -96,11 +129,11 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(26, 24, 20, 0.15);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(26, 24, 20, 0.25);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* =========================================================
@@ -122,6 +155,18 @@ body {
   position: absolute;
   inset: 0;
   z-index: 0;
+}
+
+/* ── Globe atmospheric glow ───────────────────────────────
+   Blue-tinted drop-shadow emanating from the globe sphere,
+   visible against the dark background. Applied on the
+   globe-layer (same element, no extra wrapper needed).
+   ──────────────────────────────────────────────────────── */
+.globe-layer {
+  filter:
+    drop-shadow(0 0 40px  rgba(100, 160, 255, 0.20))
+    drop-shadow(0 0 80px  rgba(80,  130, 255, 0.10))
+    drop-shadow(0 0 160px rgba(60,  100, 220, 0.06));
 }
 
 /* ── zone-top ────────────────────────────────────────────
