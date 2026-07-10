@@ -176,6 +176,7 @@ export default function App() {
           onRotationChange={handleRotationChange}
           reducedMotion={reducedMotion}
           showFaultLines={filter.showFaultLines}
+          earthquakes={filteredQuakes}
           onFaultHover={handleFaultHover}
           onFaultClick={handleFaultClick}
         />
