@@ -186,30 +186,71 @@ export const EarthGlobe = forwardRef<EarthGlobeHandle, EarthGlobeProps>(
     projectionRef.current = projection
     const path = d3.geoPath(projection, ctx)
 
-    // ── 1. Outer atmospheric glow ring (blue accent, breathing) ─────────────
+    // Light source position — used by all gradient steps
+    const hlX = cx - radius * 0.30, hlY = cy - radius * 0.26
+
+    // ── 1a. Narrow atmospheric limb glow — true atmospheric blue, not accent ──
+    // This is the thin blue rim that makes a sphere look like Earth from space.
+    // Separate from the system-accent halo; drawn first so accent halo sits on top.
+    const atmosGrad = ctx.createRadialGradient(cx, cy, radius * 0.92, cx, cy, radius * 1.10)
+    atmosGrad.addColorStop(0,    'rgba(60,120,220,0)')
+    atmosGrad.addColorStop(0.35, 'rgba(60,140,230,0.32)')
+    atmosGrad.addColorStop(0.70, 'rgba(40,100,200,0.16)')
+    atmosGrad.addColorStop(1,    'rgba(20, 60,160,0)')
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius * 1.10, 0, Math.PI * 2)
+    ctx.fillStyle = atmosGrad
+    ctx.fill()
+
+    // ── 1b. System-accent halo — breathing blue glow (instrument chrome) ──────
     const t = Date.now() / 5000                                // 5s period
-    const haloOpacity = 0.15 + 0.15 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2))
-    const haloGrad = ctx.createRadialGradient(cx, cy, radius * 0.95, cx, cy, radius * 1.22)
+    const haloOpacity = 0.14 + 0.14 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2))
+    const haloGrad = ctx.createRadialGradient(cx, cy, radius * 0.96, cx, cy, radius * 1.26)
     haloGrad.addColorStop(0,   `rgba(${ACCENT_RGB.join(',')},${haloOpacity.toFixed(3)})`)
-    haloGrad.addColorStop(0.5, `rgba(${ACCENT_RGB.join(',')},${(haloOpacity * 0.35).toFixed(3)})`)
+    haloGrad.addColorStop(0.5, `rgba(${ACCENT_RGB.join(',')},${(haloOpacity * 0.3).toFixed(3)})`)
     haloGrad.addColorStop(1,   'rgba(0,0,0,0)')
     ctx.beginPath()
-    ctx.arc(cx, cy, radius * 1.22, 0, Math.PI * 2)
+    ctx.arc(cx, cy, radius * 1.26, 0, Math.PI * 2)
     ctx.fillStyle = haloGrad
     ctx.fill()
 
-    // ── 2. Sphere base fill — cool blue-white lit hemisphere (not flat) ────────
-    // Light source upper-left: icy blue-white lit side, cool blue-grey at terminator
-    const hlX = cx - radius * 0.30, hlY = cy - radius * 0.26
-    const sphereGrad = ctx.createRadialGradient(hlX, hlY, 0, cx, cy, radius * 1.02)
-    sphereGrad.addColorStop(0,    '#eef4ff')   // lit: icy blue-white
-    sphereGrad.addColorStop(0.40, '#dce9f8')   // mid: soft blue
-    sphereGrad.addColorStop(0.75, '#c2d5ec')   // cool shadow
-    sphereGrad.addColorStop(1,    '#9ab5d4')   // terminator: muted blue-grey
+    // ── 2. Ocean base — deep ocean-blue gradient (not black, not grey) ────────
+    // #030c18 dark abyss → #082040 midnight ocean → #0e3060 lit deep-water
+    // Radial from light-source so water reads as lit on one side, deep on other.
+    const oceanGrad = ctx.createRadialGradient(hlX, hlY, 0, cx, cy, radius * 1.02)
+    oceanGrad.addColorStop(0,    '#0e3060')   // lit: lit deep-ocean (slightly lighter)
+    oceanGrad.addColorStop(0.35, '#082040')   // mid: midnight ocean
+    oceanGrad.addColorStop(0.70, '#041428')   // shadow: deep abyss blue
+    oceanGrad.addColorStop(1,    '#020a18')   // terminator: near-black ocean
     ctx.beginPath()
     path({ type: 'Sphere' } as Parameters<typeof path>[0])
-    ctx.fillStyle = sphereGrad
+    ctx.fillStyle = oceanGrad
     ctx.fill()
+
+    // ── 2b. Ocean mottling — 3 soft depth-variation blobs ────────────────────
+    // Simulates ocean-depth colour variation (shallow = slightly lighter blue,
+    // deep = darker). Fixed positions relative to globe centre — this always
+    // appears over the water because land covers these blobs independently.
+    ctx.save()
+    ctx.beginPath()
+    path({ type: 'Sphere' } as Parameters<typeof path>[0])
+    ctx.clip()
+    // Blob 1 — Pacific high (upper-right area of globe)
+    const b1 = ctx.createRadialGradient(cx + radius*0.28, cy - radius*0.10, 0, cx + radius*0.28, cy - radius*0.10, radius*0.55)
+    b1.addColorStop(0,   'rgba(14, 56,110, 0.30)')   // slightly lighter ocean
+    b1.addColorStop(1,   'rgba( 2, 12, 32, 0)')
+    ctx.fillStyle = b1; ctx.fillRect(0, 0, w, h)
+    // Blob 2 — Atlantic mid (left of centre)
+    const b2 = ctx.createRadialGradient(cx - radius*0.22, cy + radius*0.15, 0, cx - radius*0.22, cy + radius*0.15, radius*0.42)
+    b2.addColorStop(0,   'rgba(10, 40, 90, 0.22)')
+    b2.addColorStop(1,   'rgba( 2, 10, 28, 0)')
+    ctx.fillStyle = b2; ctx.fillRect(0, 0, w, h)
+    // Blob 3 — Southern deep (lower area)
+    const b3 = ctx.createRadialGradient(cx + radius*0.05, cy + radius*0.50, 0, cx + radius*0.05, cy + radius*0.50, radius*0.38)
+    b3.addColorStop(0,   'rgba( 6, 28, 72, 0.28)')
+    b3.addColorStop(1,   'rgba( 1,  8, 20, 0)')
+    ctx.fillStyle = b3; ctx.fillRect(0, 0, w, h)
+    ctx.restore()
 
     // ── 3. Graticule — accent-tinted, very subtle ─────────────────────────────
     ctx.beginPath()
@@ -218,22 +259,44 @@ export const EarthGlobe = forwardRef<EarthGlobeHandle, EarthGlobeProps>(
     ctx.lineWidth   = 0.4
     ctx.stroke()
 
-    // ── 4. Land fill — cool dark, slightly desaturated blue-charcoal ──────────
+    // ── 4. Land fill — muted olive-green / brown / tan gradient ──────────────
+    // Desaturated earth tones: tropical olive near equator, brown mid-lat, grey-tan polar.
+    // Radial from light source so lit hemisphere reads warmer/lighter.
     if (landRef.current) {
+      // Primary land gradient: lit olive-green → mid brown → dark shadow
       const landGrad = ctx.createRadialGradient(hlX, hlY, 0, cx, cy, radius * 1.02)
-      landGrad.addColorStop(0,   '#2c3240')   // lit land: dark cool blue-charcoal
-      landGrad.addColorStop(0.7, '#1e2530')
-      landGrad.addColorStop(1,   '#141820')   // terminator edge: near-black blue
+      landGrad.addColorStop(0,    '#3a4a28')   // lit: muted olive-green (tropical lit)
+      landGrad.addColorStop(0.30, '#2e3c22')   // mid-lit: darker olive
+      landGrad.addColorStop(0.60, '#2a301e')   // shadow: olive-brown
+      landGrad.addColorStop(0.85, '#201e18')   // deep shadow: warm dark brown
+      landGrad.addColorStop(1,    '#171510')   // terminator: near-black warm
 
       ctx.beginPath()
       path(landRef.current as Parameters<typeof path>[0])
       ctx.fillStyle = landGrad
       ctx.fill()
 
+      // Subtle polar/high-lat overlay: a second vertical linear gradient
+      // fades in a cooler grey-tan toward the poles so arctic land reads
+      // as snow-covered/cold rather than tropical-olive.
+      ctx.save()
       ctx.beginPath()
       path(landRef.current as Parameters<typeof path>[0])
-      ctx.strokeStyle = '#141210'
-      ctx.lineWidth   = 0.6
+      ctx.clip()
+      const polarGrad = ctx.createLinearGradient(cx, cy - radius, cx, cy + radius)
+      polarGrad.addColorStop(0,    'rgba(210,195,170, 0.28)')  // N-pole: sandy tan
+      polarGrad.addColorStop(0.25, 'rgba(210,195,170, 0.00)')  // fade out by 25%
+      polarGrad.addColorStop(0.75, 'rgba(210,195,170, 0.00)')  // stays clear mid-lat
+      polarGrad.addColorStop(1,    'rgba(200,185,160, 0.22)')  // S-pole: pale tan
+      ctx.fillStyle = polarGrad
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+
+      // Thin land outline — warm dark (not blue) to match olive tones
+      ctx.beginPath()
+      path(landRef.current as Parameters<typeof path>[0])
+      ctx.strokeStyle = 'rgba(15,13,10,0.8)'
+      ctx.lineWidth   = 0.5
       ctx.stroke()
     }
 
