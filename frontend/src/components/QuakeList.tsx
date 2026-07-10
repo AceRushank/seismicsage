@@ -105,7 +105,7 @@ function QuakeRow({ quake, isSelected, index, onSelect }: QuakeRowProps) {
         gap:          10,
         width:       '100%',
         padding:     '10px 14px',
-        background:  isSelected ? 'rgba(245,163,92,0.08)' : 'transparent',
+        background:  isSelected ? 'rgba(78,161,247,0.08)' : 'transparent',
         border:      'none',
         borderBottom:'1px solid rgba(255,255,255,0.05)',
         // Left accent border — magnitude color, glows when selected

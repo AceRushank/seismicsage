@@ -1,5 +1,22 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+/**
+ * QuakeMarkers — zero-lag SVG quake dot overlay.
+ *
+ * Root cause of old lag: React useState for marker positions causes async
+ * batched re-renders that are 1-2 frames behind the canvas rotation.
+ *
+ * Fix: ALL position updates go through direct DOM writes
+ * (el.setAttribute('transform', 'translate(x,y)')) inside the RAF loop.
+ * React state is NOT used for position — only for identity (which quakes
+ * currently have mounted SVG elements), and even that is driven by the
+ * earthquakes prop, not the RAF loop.
+ *
+ * Layering:
+ *   - Outer <g ref>   : position, written imperatively every frame, no React
+ *   - Inner <motion.g>: scale/opacity spring, never touches position coords
+ */
+
+import { useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import * as d3 from 'd3'
 import type { Earthquake } from '../../lib/types'
 import type { GeoRotation } from './globeProjection'
@@ -19,14 +36,7 @@ function getMagnitudeRadius(mag: number): number {
   return 3.5
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface MarkerData {
-  id:       string
-  x:        number
-  y:        number
-  quake:    Earthquake
-}
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface QuakeMarkersProps {
   earthquakes:   Earthquake[]
@@ -38,8 +48,6 @@ interface QuakeMarkersProps {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-// Note: pulse rings are rendered on the overlay canvas inside EarthGlobe.
-// This SVG layer handles click targets + dot visuals + selection rings.
 
 export function QuakeMarkers({
   earthquakes,
@@ -49,43 +57,68 @@ export function QuakeMarkers({
   onSelect,
   reducedMotion,
 }: QuakeMarkersProps) {
-  const [markers, setMarkers] = useState<MarkerData[]>([])
-  const rafRef       = useRef<number | null>(null)
-  const lastRef      = useRef(0)
+  // Map from quake id → the outer <g> element that we write transform to
+  const posRefs = useRef(new Map<string, SVGGElement>())
 
-  const update = useCallback((ts: number) => {
-    if (ts - lastRef.current >= 33) {       // ~30fps throttle
-      lastRef.current = ts
-      const rot  = rotationRef.current
-      const proj = projectionRef.current
-      if (rot && proj) {
-        const next: MarkerData[] = []
-        for (const q of earthquakes) {
-          if (!isVisible(q.longitude, q.latitude, rot)) continue
-          const pt = proj([q.longitude, q.latitude]); if (!pt) continue
-          next.push({ id: q.id, x: pt[0], y: pt[1], quake: q })
-        }
-        setMarkers(next)
-      }
-    }
-    rafRef.current = requestAnimationFrame(update)
-  }, [earthquakes, rotationRef, projectionRef])
+  // Imperative position loop — runs every RAF frame, zero React involvement
+  const earthquakesRef = useRef(earthquakes)
+  useEffect(() => { earthquakesRef.current = earthquakes }, [earthquakes])
 
   useEffect(() => {
-    rafRef.current = requestAnimationFrame(update)
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
-  }, [update])
+    let raf: number
+
+    const update = () => {
+      const rot  = rotationRef.current
+      const proj = projectionRef.current
+
+      if (rot && proj) {
+        for (const q of earthquakesRef.current) {
+          const el = posRefs.current.get(q.id)
+          if (!el) continue
+
+          if (!isVisible(q.longitude, q.latitude, rot)) {
+            // Hide: direct style write, no transition
+            if (el.style.visibility !== 'hidden') {
+              el.style.visibility = 'hidden'
+            }
+            continue
+          }
+
+          const pt = proj([q.longitude, q.latitude])
+          if (!pt) {
+            if (el.style.visibility !== 'hidden') el.style.visibility = 'hidden'
+            continue
+          }
+
+          // Direct SVG attribute write — same frame as canvas rotation
+          el.setAttribute('transform', `translate(${pt[0]},${pt[1]})`)
+          if (el.style.visibility !== 'visible') {
+            el.style.visibility = 'visible'
+          }
+        }
+      }
+
+      raf = requestAnimationFrame(update)
+    }
+
+    raf = requestAnimationFrame(update)
+    return () => cancelAnimationFrame(raf)
+  }, [rotationRef, projectionRef])   // only changes if refs change (never in practice)
 
   return (
     <svg
       style={{
-        position: 'absolute', inset: 0, width: '100%', height: '100%',
-        pointerEvents: 'none', overflow: 'visible', zIndex: 10,
+        position: 'absolute', inset: 0,
+        width: '100%', height: '100%',
+        // No pointer-events on the SVG itself — only on <g> children
+        pointerEvents: 'none',
+        overflow: 'visible',
+        zIndex: 10,
       }}
-      aria-label="Earthquake markers on globe"
+      aria-label="Earthquake markers"
     >
       <defs>
-        {/* Per-color drop-shadow glow filters — magnitude dot only */}
+        {/* Per-magnitude drop-shadow glow filters */}
         <filter id="glow-red"   x="-70%" y="-70%" width="240%" height="240%">
           <feGaussianBlur stdDeviation="3.5" result="blur" />
           <feFlood floodColor="#c0392b" floodOpacity="0.6" result="color" />
@@ -104,68 +137,93 @@ export function QuakeMarkers({
           <feComposite in="color" in2="blur" operator="in" result="shadow" />
           <feMerge><feMergeNode in="shadow" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        {/* Accent glow for selected ring */}
-        <filter id="glow-accent" x="-80%" y="-80%" width="260%" height="260%">
+        {/* Blue accent glow for selection ring */}
+        <filter id="glow-sel" x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur stdDeviation="4" result="blur" />
-          <feFlood floodColor="#F5A35C" floodOpacity="0.7" result="color" />
+          <feFlood floodColor="#4EA1F7" floodOpacity="0.7" result="color" />
           <feComposite in="color" in2="blur" operator="in" result="shadow" />
           <feMerge><feMergeNode in="shadow" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
 
-      <AnimatePresence>
-        {markers.map(({ id, x, y, quake }) => {
-          const color    = getMagnitudeColor(quake.magnitude)
-          const r        = getMagnitudeRadius(quake.magnitude)
-          const isSelected = id === selectedId
-          const filterId = quake.magnitude >= 6 ? 'glow-red' : quake.magnitude >= 4 ? 'glow-amber' : 'glow-green'
+      {/*
+        Render ALL earthquakes as SVG elements upfront (not just visible ones).
+        Visibility is toggled imperatively in the RAF loop above.
+        Starting visibility:hidden prevents flash-at-origin on first frame.
+      */}
+      {earthquakes.map((quake) => {
+        const color    = getMagnitudeColor(quake.magnitude)
+        const r        = getMagnitudeRadius(quake.magnitude)
+        const isSelected = quake.id === selectedId
+        const filterId = quake.magnitude >= 6 ? 'glow-red' : quake.magnitude >= 4 ? 'glow-amber' : 'glow-green'
 
-          return (
+        return (
+          /*
+            OUTER <g>: position layer — written by RAF imperatively.
+            No Framer Motion here. No CSS transition on transform.
+            Starts at translate(0,0) visibility:hidden — RAF overwrites before paint.
+          */
+          <g
+            key={quake.id}
+            ref={(el) => {
+              if (el) posRefs.current.set(quake.id, el)
+              else    posRefs.current.delete(quake.id)
+            }}
+            style={{
+              visibility: 'hidden',  // hidden until RAF positions it
+              pointerEvents: 'all',
+              cursor: 'pointer',
+            }}
+            onClick={() => onSelect(quake)}
+            aria-label={`Earthquake M${quake.magnitude.toFixed(1)} at ${quake.place}`}
+          >
+            {/*
+              INNER <motion.g>: animation layer — handles scale/opacity/spring.
+              transformOrigin: '0 0' so scale origin is the quake's projected point.
+              Never touches x/y position — that's the outer <g>'s job.
+            */}
             <motion.g
-              key={id}
-              style={{ pointerEvents: 'all', cursor: 'pointer' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              onClick={() => onSelect(quake)}
-              aria-label={`Earthquake M${quake.magnitude.toFixed(1)} at ${quake.place}`}
+              style={{ transformOrigin: '0 0' }}
+              initial={reducedMotion ? false : { scale: 0, opacity: 0 }}
+              animate={{
+                scale:   isSelected ? 1.35 : 1,
+                opacity: isSelected ? 1    : 0.92,
+              }}
+              transition={reducedMotion
+                ? { duration: 0 }
+                : { type: 'spring', stiffness: 320, damping: 26 }
+              }
+              whileHover={{ scale: isSelected ? 1.45 : 1.3, opacity: 1 }}
             >
-              <g transform={`translate(${x},${y})`}>
-                {/* Selection outer ring — accent-colored with glow */}
-                {isSelected && (
-                  <motion.circle
-                    cx={0} cy={0} r={r + 6}
-                    fill="none"
-                    stroke="#F5A35C"
-                    strokeWidth={1.5}
-                    filter="url(#glow-accent)"
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 0.85, scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-                    style={{ transformOrigin: '0 0' }}
-                  />
-                )}
-
-                {/* Main dot */}
+              {/* Selection ring — blue accent */}
+              {isSelected && (
                 <motion.circle
-                  cx={0} cy={0} r={r}
-                  fill={color}
-                  filter={`url(#${filterId})`}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: isSelected ? 1.35 : 1, opacity: isSelected ? 1 : 0.90 }}
-                  transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 24 }}
-                  whileHover={{ scale: isSelected ? 1.4 : 1.3, opacity: 1 }}
+                  cx={0} cy={0} r={r + 6}
+                  fill="none"
+                  stroke="#4EA1F7"
+                  strokeWidth={1.5}
+                  filter="url(#glow-sel)"
                   style={{ transformOrigin: '0 0' }}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 0.9,  scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 280, damping: 22 }}
                 />
+              )}
 
-                {/* Invisible larger hit target for easier clicking */}
-                <circle cx={0} cy={0} r={Math.max(r + 8, 14)} fill="transparent" />
-              </g>
+              {/* Main dot */}
+              <circle
+                cx={0} cy={0}
+                r={r}
+                fill={color}
+                filter={`url(#${filterId})`}
+              />
+
+              {/* Larger invisible hit target — easier to click small dots */}
+              <circle cx={0} cy={0} r={Math.max(r + 8, 14)} fill="transparent" />
             </motion.g>
-          )
-        })}
-      </AnimatePresence>
+          </g>
+        )
+      })}
     </svg>
   )
 }

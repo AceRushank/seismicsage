@@ -119,7 +119,7 @@ export function FilterPills({ filter, onChange }: FilterPillsProps) {
                 position:   'absolute',
                 inset:      0,
                 borderRadius: 10,
-                background: 'rgba(245,163,92,0.12)',
+                background: 'rgba(78,161,247,0.12)',
                 boxShadow:  '0 0 20px -4px var(--accent)',
                 zIndex:     -1,
               }}
@@ -175,7 +175,7 @@ function Pill({ pill, active, layoutId, onClick }: PillProps) {
             position:   'absolute',
             inset:      0,
             borderRadius: 10,
-            background: 'rgba(245,163,92,0.12)',
+            background: 'rgba(78,161,247,0.12)',
             boxShadow:  '0 0 20px -4px var(--accent)',
             zIndex:     -1,
           }}

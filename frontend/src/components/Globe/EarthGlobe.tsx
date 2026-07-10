@@ -5,7 +5,7 @@ import { isVisible } from './globeProjection'
 import type { Earthquake } from '../../lib/types'
 
 // ─── Design tokens (must match CSS --accent) ─────────────────────────────────
-const ACCENT_RGB = [245, 163, 92] as const
+const ACCENT_RGB = [78, 161, 247] as const
 
 // ─── Globe constants ──────────────────────────────────────────────────────────
 const LAND_URL  = 'https://raw.githubusercontent.com/martynafford/natural-earth-geojson/refs/heads/master/110m/physical/ne_110m_land.json'
@@ -186,26 +186,26 @@ export const EarthGlobe = forwardRef<EarthGlobeHandle, EarthGlobeProps>(
     projectionRef.current = projection
     const path = d3.geoPath(projection, ctx)
 
-    // ── 1. Outer atmospheric glow ring (amber accent, breathing) ─────────────
+    // ── 1. Outer atmospheric glow ring (blue accent, breathing) ─────────────
     const t = Date.now() / 5000                                // 5s period
     const haloOpacity = 0.15 + 0.15 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2))
-    const haloGrad = ctx.createRadialGradient(cx, cy, radius * 0.95, cx, cy, radius * 1.20)
+    const haloGrad = ctx.createRadialGradient(cx, cy, radius * 0.95, cx, cy, radius * 1.22)
     haloGrad.addColorStop(0,   `rgba(${ACCENT_RGB.join(',')},${haloOpacity.toFixed(3)})`)
-    haloGrad.addColorStop(0.5, `rgba(${ACCENT_RGB.join(',')},${(haloOpacity * 0.4).toFixed(3)})`)
+    haloGrad.addColorStop(0.5, `rgba(${ACCENT_RGB.join(',')},${(haloOpacity * 0.35).toFixed(3)})`)
     haloGrad.addColorStop(1,   'rgba(0,0,0,0)')
     ctx.beginPath()
-    ctx.arc(cx, cy, radius * 1.20, 0, Math.PI * 2)
+    ctx.arc(cx, cy, radius * 1.22, 0, Math.PI * 2)
     ctx.fillStyle = haloGrad
     ctx.fill()
 
-    // ── 2. Sphere base fill — lit hemisphere gradient (not flat) ─────────────
-    // Light source upper-left: warm cream lit side, cooler at terminator
+    // ── 2. Sphere base fill — cool blue-white lit hemisphere (not flat) ────────
+    // Light source upper-left: icy blue-white lit side, cool blue-grey at terminator
     const hlX = cx - radius * 0.30, hlY = cy - radius * 0.26
     const sphereGrad = ctx.createRadialGradient(hlX, hlY, 0, cx, cy, radius * 1.02)
-    sphereGrad.addColorStop(0,    '#f2ede0')   // lit: warm cream
-    sphereGrad.addColorStop(0.45, '#e8e2d4')
-    sphereGrad.addColorStop(0.80, '#d4cdc0')
-    sphereGrad.addColorStop(1,    '#b8b0a4')   // terminator rim: muted
+    sphereGrad.addColorStop(0,    '#eef4ff')   // lit: icy blue-white
+    sphereGrad.addColorStop(0.40, '#dce9f8')   // mid: soft blue
+    sphereGrad.addColorStop(0.75, '#c2d5ec')   // cool shadow
+    sphereGrad.addColorStop(1,    '#9ab5d4')   // terminator: muted blue-grey
     ctx.beginPath()
     path({ type: 'Sphere' } as Parameters<typeof path>[0])
     ctx.fillStyle = sphereGrad
@@ -218,12 +218,12 @@ export const EarthGlobe = forwardRef<EarthGlobeHandle, EarthGlobeProps>(
     ctx.lineWidth   = 0.4
     ctx.stroke()
 
-    // ── 4. Land fill — warm gradient, lighter at lit pole ────────────────────
+    // ── 4. Land fill — cool dark, slightly desaturated blue-charcoal ──────────
     if (landRef.current) {
       const landGrad = ctx.createRadialGradient(hlX, hlY, 0, cx, cy, radius * 1.02)
-      landGrad.addColorStop(0,   '#3a3530')   // lit land: warm dark
-      landGrad.addColorStop(0.7, '#2a2520')
-      landGrad.addColorStop(1,   '#1e1a16')   // terminator edge: very dark
+      landGrad.addColorStop(0,   '#2c3240')   // lit land: dark cool blue-charcoal
+      landGrad.addColorStop(0.7, '#1e2530')
+      landGrad.addColorStop(1,   '#141820')   // terminator edge: near-black blue
 
       ctx.beginPath()
       path(landRef.current as Parameters<typeof path>[0])
