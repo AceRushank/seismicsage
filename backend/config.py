@@ -84,3 +84,11 @@ MAX_BOUNDARY_DISTANCE_KM: float = 500.0
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
+# ---------------------------------------------------------------------------
+# Groq AI settings
+# ---------------------------------------------------------------------------
+
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_TIMEOUT: int = int(os.getenv("GROQ_TIMEOUT_SECONDS", "15"))

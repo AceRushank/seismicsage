@@ -27,7 +27,7 @@ from config import FRONTEND_URL, LOG_LEVEL
 from models.schemas import ErrorResponse, HealthResponse, ServiceStatus, StatsResponse
 from routers import analysis, earthquakes
 from routers.earthquakes import get_stats  # re-export for /api/stats alias
-from services import gemini_service
+from services import groq_service
 from services.geology_service import is_plate_data_loaded, load_plate_boundaries
 
 # ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     summary="Service health check",
     description=(
         "Returns the operational status of SeismicSage and its dependencies: "
-        "USGS earthquake feed, Gemini AI API, and PB2002 plate data. "
+        "USGS earthquake feed, Groq AI API, and PB2002 plate data. "
         "Useful for deployment health checks and monitoring."
     ),
     tags=["Health"],
@@ -191,12 +191,12 @@ async def health_check() -> HealthResponse:
     # --- Check USGS ---
     usgs_status = await _check_usgs_health()
 
-    # --- Check Gemini ---
-    gemini_ok, gemini_latency = await gemini_service.check_gemini_health()
+    # --- Check Groq ---
+    groq_ok, groq_latency = await groq_service.check_gemini_health()
     gemini_status = ServiceStatus(
-        status="ok" if gemini_ok else "down",
-        latency_ms=gemini_latency,
-        detail=None if gemini_ok else "Gemini API unreachable or API key not configured.",
+        status="ok" if groq_ok else "down",
+        latency_ms=groq_latency,
+        detail=None if groq_ok else "Groq API unreachable or GROQ_API_KEY not configured.",
     )
 
     # --- Check plate data ---
@@ -213,7 +213,7 @@ async def health_check() -> HealthResponse:
     # --- Determine overall status ---
     if not usgs_status.status == "ok":
         overall = "down"
-    elif not gemini_ok or not plate_loaded:
+    elif not groq_ok or not plate_loaded:
         overall = "degraded"
     else:
         overall = "ok"
